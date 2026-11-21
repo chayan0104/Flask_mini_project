@@ -1,0 +1,6 @@
+# Terraform local cache and state
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+crash.log
