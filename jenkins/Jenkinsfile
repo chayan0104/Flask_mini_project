@@ -1,0 +1,35 @@
+@Library('mini-pipeline') _
+
+pipeline {
+  agent any
+
+  environment {
+    AWS_REGION = 'us-east-1'
+    ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build images') {
+      steps {
+        miniPipeline([
+          frontendContext: 'app/frontend',
+          usersContext: 'app/users',
+          ordersContext: 'app/orders',
+          registry: env.ECR_REGISTRY
+        ])
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker builder prune --filter until=24h -f || true'
+    }
+  }
+}

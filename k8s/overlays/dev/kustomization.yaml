@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+labels:
+  - pairs:
+      environment: dev
+images:
+  - name: mini-platform/frontend
+    newName: mini-platform/frontend
+    newTag: dev
+  - name: mini-platform/orders
+    newName: mini-platform/orders
+    newTag: dev
+  - name: mini-platform/users
+    newName: mini-platform/users
+    newTag: dev
