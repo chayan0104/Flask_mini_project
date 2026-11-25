@@ -4,3 +4,5 @@
 *.tfstate.*
 .terraform.tfstate.lock.info
 crash.log
+*.sqlite3
+__pycache__/

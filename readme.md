@@ -1,8 +1,10 @@
 # Mini Platform
 
 A small three-service application: a React dashboard served by Nginx, a Flask
-orders API, and a Flask users API. The orders service fetches user data from the
-users service; the dashboard calls orders through the Nginx `/api/` proxy.
+orders API, and a Flask users API backed by SQLite. The orders service fetches
+user data from the users service; the dashboard calls orders through the Nginx
+`/api/` proxy. Prometheus scrapes both APIs and Grafana provides a provisioned
+monitoring dashboard.
 
 ## Architecture
 
@@ -10,8 +12,9 @@ users service; the dashboard calls orders through the Nginx `/api/` proxy.
 Browser :3000
     |
     v
-Frontend (React + Nginx) ---> Orders API ---> Users API
+Frontend (React + Nginx) ---> Orders API ---> Users API ---> SQLite
                                   :8080          :8080
+                              Prometheus ---> Grafana
 ```
 
 In the local Compose setup, the backend services are also published on the host
@@ -31,12 +34,29 @@ docker compose up --build
 
 Open the dashboard at <http://localhost:3000>. Stop the services with
 `Ctrl+C`, or run `docker compose down` from the `app` directory.
+The users database is stored in the `users-data` volume and survives container
+recreation. The first run seeds Alice, Bob, and Charlie.
 
 | Service | Local URL | Health endpoint |
 | --- | --- | --- |
 | Frontend | <http://localhost:3000> | `/` |
 | Orders API | <http://localhost:8082/api/orders> | <http://localhost:8082/health> |
 | Users API | <http://localhost:8081/api/users> | <http://localhost:8081/health> |
+| Prometheus | <http://localhost:9090> | - |
+| Grafana | <http://localhost:3001> | - |
+
+Sign in to Grafana with its initial `admin` / `admin` credentials and change
+the password when prompted. The provisioned **Mini Platform** dashboard shows
+request rate, p95 request duration, and 5xx error rate for both APIs.
+
+The users API also accepts a JSON `POST` to add a user:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8081/api/users `
+  -ContentType "application/json" -Body '{"name":"Dana"}'
+```
+
+Both backend services expose Prometheus metrics at `/metrics`.
 
 Compose waits for each API health check before starting its dependent service.
 The frontend proxies `/api/*` to the orders API.
@@ -47,8 +67,9 @@ The frontend proxies `/api/*` to the orders API.
 app/
   frontend/                 React UI, Nginx config, and Dockerfile
   orders/                   Flask orders API and Dockerfile
-  users/                    Flask users API and Dockerfile
-  docker-compose.yml        Local three-service environment
+  users/                    SQLite-backed Flask users API and Dockerfile
+  docker-compose.yml        Local app and monitoring environment
+monitoring/                 Prometheus and provisioned Grafana configuration
 jenkins/                    Jenkins image, pipeline, and shared library step
 k8s/
   base/                     Kubernetes resources for the application
@@ -83,10 +104,12 @@ The overlay includes Deployments and Services for the three app components,
 plus Redis and platform resources such as probes, resource limits, an HPA,
 disruption budgets, a health-check CronJob, and NetworkPolicies. The HPA
 requires metrics-server, and NetworkPolicies require a cluster network plugin
-that enforces them. Redis and the sample ConfigMap/Secret are platform
-scaffolding; the current Flask APIs do not use them. The Secret value in the
-manifest is a development placeholder—replace it and do not use it for
-production credentials.
+that enforces them. The users deployment stores SQLite data in a 1 GiB
+PersistentVolumeClaim and uses one replica so all requests use the same local
+database. A default StorageClass is required. Redis and the sample
+ConfigMap/Secret are platform scaffolding; the current Flask APIs do not use
+them. The Secret value in the manifest is a development placeholder—replace
+it and do not use it for production credentials.
 
 ## AWS infrastructure with Terraform
 

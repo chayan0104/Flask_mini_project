@@ -5,6 +5,10 @@ services:
     restart: unless-stopped
     environment:
       USERS_URL: http://users:8080
+      DATABASE_PATH: /data/users.sqlite3
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
+    volumes:
+      - users-data:/data
     ports:
       - "8081:8080"
     healthcheck:
@@ -12,6 +16,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    expose:
+      - "8080"
 
   orders:
     build:
@@ -19,6 +25,7 @@ services:
     restart: unless-stopped
     environment:
       USERS_URL: http://users:8080
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus-multiproc
     depends_on:
       users:
         condition: service_healthy
@@ -29,6 +36,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    expose:
+      - "8080"
 
   frontend:
     build:
@@ -44,3 +53,38 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    depends_on:
+      users:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+
+volumes:
+  users-data:
+  prometheus-data:
+  grafana-data:
