@@ -74,30 +74,46 @@ jenkins/                    Jenkins image, pipeline, and shared library step
 k8s/
   base/                     Kubernetes resources for the application
   overlays/dev/             Development Kustomize overlay
+  overlays/uat/             UAT Kustomize overlay
 terraform/
   modules/                  AWS VPC, EKS, and ECR modules
-  envs/dev/                 Development environment composition
+  envs/dev/                 Development environment (creates shared ECR)
+  envs/uat/                 UAT environment (uses shared ECR)
 ```
 
 ## Kubernetes
 
 Requirements: `kubectl`, a Kubernetes cluster, and images available from a
-registry the cluster can pull from. The dev overlay refers to
-`mini-platform/frontend:dev`, `mini-platform/orders:dev`, and
-`mini-platform/users:dev`. Build and push those tags (or update the image names
-in `k8s/overlays/dev/kustomization.yaml`) before deploying.
+registry the cluster can pull from. The dev and UAT overlays use separate
+namespaces (`mini-platform-dev` and `mini-platform-uat`) and image tags
+(`dev` and `uat`). The Jenkins pipeline lets you select which environment tag
+to publish. It pushes to the shared ECR repositories, so deploy to UAT only
+after a build has published the `uat` tag.
 
-Render the manifests:
+Configure `kubectl` for the target EKS cluster and set each overlay's `newName`
+values to the corresponding full ECR repository URLs from Terraform output.
+Get those URLs with:
 
 ```powershell
-kubectl kustomize k8s/overlays/dev
+terraform -chdir=terraform/envs/dev output ecr_repository_urls
 ```
 
-Deploy and check status:
+Render and deploy dev:
 
 ```powershell
+aws eks update-kubeconfig --region us-east-1 --name mini-platform-dev
+kubectl kustomize k8s/overlays/dev
 kubectl apply -k k8s/overlays/dev
-kubectl get pods,services -n mini-platform
+kubectl get pods,services -n mini-platform-dev
+```
+
+For UAT, switch kubectl to its cluster and apply the UAT overlay:
+
+```powershell
+aws eks update-kubeconfig --region us-east-1 --name mini-platform-uat
+kubectl kustomize k8s/overlays/uat
+kubectl apply -k k8s/overlays/uat
+kubectl get pods,services -n mini-platform-uat
 ```
 
 The overlay includes Deployments and Services for the three app components,
@@ -121,35 +137,60 @@ Requirements: Terraform `>= 1.5`, AWS CLI credentials configured for your
 account, and permissions to create the listed networking, IAM, EKS, and ECR
 resources.
 
-From the repository root:
+Dev and UAT have separate Terraform directories and therefore separate local
+state. The dev environment creates the shared ECR repositories; apply it before
+UAT. Both environments use the values in their own `terraform.tfvars` file.
+
+From the repository root, initialize and review the dev plan:
 
 ```powershell
-cd terraform/envs/dev
-terraform init
-terraform validate
-terraform plan
-terraform apply
+terraform -chdir=terraform/envs/dev init
+terraform -chdir=terraform/envs/dev validate
+terraform -chdir=terraform/envs/dev plan
 ```
 
-Review the plan before applying. To remove the development resources:
+Apply after reviewing the plan:
 
 ```powershell
-terraform destroy
+terraform -chdir=terraform/envs/dev apply
 ```
 
-The default region is `us-east-1`; override it with
-`terraform apply -var="aws_region=us-west-2"` if needed. After provisioning,
-configure `kubectl` for the created cluster and push the application images to
-the ECR repositories before applying the Kubernetes overlay.
+Then initialize, review, and apply UAT:
+
+```powershell
+terraform -chdir=terraform/envs/uat init
+terraform -chdir=terraform/envs/uat validate
+terraform -chdir=terraform/envs/uat plan
+terraform -chdir=terraform/envs/uat apply
+```
+
+The default region is `us-east-1`; if changing it, use the same `aws_region` in
+both `terraform.tfvars` files because ECR is shared in the dev region. ECR
+repository URLs are shared between environments, while the VPC and EKS cluster
+names are suffixed with `dev` or `uat`. UAT looks up the ECR repositories
+created by dev, so keep dev applied while UAT needs them. Configure `kubectl`
+for the desired cluster and push the application images to ECR before
+deploying the Kubernetes overlay.
+
+Destroy UAT before dev so the shared ECR repositories remain available until
+UAT is removed:
+
+```powershell
+terraform -chdir=terraform/envs/uat destroy
+terraform -chdir=terraform/envs/dev destroy
+```
 
 ## Jenkins pipeline
 
 `jenkins/Dockerfile` builds a Jenkins image with the plugins in `plugins.txt`.
 The pipeline in `jenkins/Jenkinsfile` builds and pushes the three service
-images to ECR.
+images to ECR. Select `dev` or `uat` in the `TARGET_ENV` build parameter; each
+build publishes an immutable build tag and the matching environment tag. The
+pipeline builds and pushes images but does not deploy them to Kubernetes.
 
 Before running it, configure the Jenkins `mini-pipeline` shared library, an
 AWS account ID (`AWS_ACCOUNT_ID`), AWS credentials under the ID
-`aws-credentials`, and a Docker-capable Jenkins agent. The shared-library
-pipeline step expects the AWS login helper provided by the Pipeline AWS
-plugin; ensure that plugin is installed in Jenkins.
+`aws-credentials`, and a Docker-capable Jenkins agent. Set the pipeline's
+`AWS_REGION` parameter to the region used by Terraform. The shared-library
+pipeline step expects the AWS login helper provided by the Pipeline AWS plugin;
+ensure that plugin is installed in Jenkins.

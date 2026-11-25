@@ -23,28 +23,38 @@ variable "project_name" {
   default = "mini-platform"
 }
 
+variable "environment" {
+  type = string
+}
+
 locals {
+  ecr_repositories = [
+    for service in ["frontend", "orders", "users"] :
+    "${var.project_name}/${service}"
+  ]
+
   common_tags = {
     Project     = var.project_name
-    Environment = "dev"
+    Environment = var.environment
     ManagedBy   = "Terraform"
   }
 }
 
 module "vpc" {
   source = "../../modules/vpc"
-  name   = "${var.project_name}-dev"
+  name   = "${var.project_name}-${var.environment}"
   azs    = ["${var.aws_region}a", "${var.aws_region}b"]
 }
 
 module "ecr" {
-  source = "../../modules/ecr"
-  tags   = local.common_tags
+  source       = "../../modules/ecr"
+  repositories = local.ecr_repositories
+  tags         = merge(local.common_tags, { Environment = "shared" })
 }
 
 module "eks" {
   source     = "../../modules/eks"
-  name       = "${var.project_name}-dev"
+  name       = "${var.project_name}-${var.environment}"
   subnet_ids = module.vpc.public_subnet_ids
   tags       = local.common_tags
 }

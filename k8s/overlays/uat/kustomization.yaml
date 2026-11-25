@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+namespace: mini-platform-uat
+labels:
+  - pairs:
+      environment: uat
+images:
+  - name: mini-platform/frontend
+    newName: mini-platform/frontend
+    newTag: uat
+  - name: mini-platform/orders
+    newName: mini-platform/orders
+    newTag: uat
+  - name: mini-platform/users
+    newName: mini-platform/users
+    newTag: uat
+patches:
+  - target:
+      version: v1
+      kind: ConfigMap
+      name: platform-config
+    patch: |-
+      - op: replace
+        path: /data/APP_ENV
+        value: uat

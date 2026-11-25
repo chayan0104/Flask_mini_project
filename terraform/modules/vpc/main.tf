@@ -1,17 +1,3 @@
-variable "name" {
-  type = string
-}
-
-variable "cidr" {
-  type    = string
-  default = "10.0.0.0/16"
-}
-
-variable "azs" {
-  type    = list(string)
-  default = ["us-east-1a", "us-east-1b"]
-}
-
 resource "aws_vpc" "this" {
   cidr_block           = var.cidr
   enable_dns_hostnames = true
@@ -24,7 +10,7 @@ resource "aws_vpc" "this" {
 
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
-  tags = { Name = "${var.name}-igw" }
+  tags   = { Name = "${var.name}-igw" }
 }
 
 resource "aws_subnet" "public" {
