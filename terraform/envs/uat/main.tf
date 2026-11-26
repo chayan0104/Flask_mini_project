@@ -45,6 +45,7 @@ locals {
   }
 }
 
+# Read dev-owned repositories; a data source does not create or manage them.
 data "aws_ecr_repository" "shared" {
   for_each = toset(local.ecr_repositories)
   name     = each.value
@@ -57,8 +58,9 @@ module "vpc" {
 }
 
 module "eks" {
-  source     = "../../modules/eks"
-  name       = "${var.project_name}-${var.environment}"
+  source = "../../modules/eks"
+  name   = "${var.project_name}-${var.environment}"
+  # UAT has its own VPC and cluster, separate from dev.
   subnet_ids = module.vpc.public_subnet_ids
   tags       = local.common_tags
 }

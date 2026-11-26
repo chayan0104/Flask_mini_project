@@ -16,6 +16,7 @@ variable "tags" {
   default = {}
 }
 
+# Separate IAM roles give the EKS control plane and worker nodes distinct identities.
 resource "aws_iam_role" "cluster" {
   name = "${var.name}-eks-cluster"
   assume_role_policy = jsonencode({

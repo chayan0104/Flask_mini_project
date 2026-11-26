@@ -3,7 +3,9 @@ kind: Deployment
 metadata:
   name: orders
 spec:
+  # A Deployment keeps this many matching Pods running.
   replicas: 2
+  # The selector must match the labels on the Pod template below.
   selector:
     matchLabels:
       app: orders
@@ -16,11 +18,14 @@ spec:
         - name: orders
           image: mini-platform/orders:latest
           imagePullPolicy: IfNotPresent
+          # Services in the same namespace can be reached by their DNS name.
           env:
             - name: USERS_URL
               value: http://users:8080
+          # This documents the container's listening port; it does not expose it.
           ports:
             - containerPort: 8080
+          # Ready Pods receive Service traffic; a failed liveness probe restarts the container.
           readinessProbe:
             httpGet:
               path: /health
@@ -33,6 +38,7 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 20
+          # Requests affect scheduling; limits cap CPU and memory consumption.
           resources:
             requests:
               cpu: 50m
@@ -46,8 +52,10 @@ kind: Service
 metadata:
   name: orders
 spec:
+  # The Service routes to Pods carrying this label, even as Pod IPs change.
   selector:
     app: orders
   ports:
+    # Clients connect to port 8080; traffic is forwarded to the container port.
     - port: 8080
       targetPort: 8080

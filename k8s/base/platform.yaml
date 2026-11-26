@@ -62,6 +62,9 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: platform-health-check
         spec:
           restartPolicy: OnFailure
           containers:

@@ -83,6 +83,9 @@ terraform/
 
 ## Kubernetes
 
+For a resource-by-resource explanation, request flow, and learning commands,
+see the [Kubernetes learning guide](k8s/README.md).
+
 Requirements: `kubectl`, a Kubernetes cluster, and images available from a
 registry the cluster can pull from. The dev and UAT overlays use separate
 namespaces (`mini-platform-dev` and `mini-platform-uat`) and image tags
@@ -128,6 +131,9 @@ them. The Secret value in the manifest is a development placeholder—replace
 it and do not use it for production credentials.
 
 ## AWS infrastructure with Terraform
+
+For an explanation of the modules, dependency graph, state, and safe workflow,
+see the [Terraform learning guide](terraform/README.md).
 
 The Terraform environment provisions AWS resources: a VPC with public
 subnets, an EKS cluster and node group, and ECR repositories. This can create
